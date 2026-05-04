@@ -1,0 +1,22 @@
+Options -Indexes
+
+# Protect sensitive directories
+<FilesMatch "\.(json|log)$">
+    Order deny,allow
+    Deny from all
+</FilesMatch>
+
+# Allow output/ only through download.php
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Block direct access to output files (force through download.php)
+    RewriteRule ^output/(.+)\.docx$ api/download.php?path=output/$1.docx [L,QSA]
+</IfModule>
+
+# PHP settings
+<IfModule mod_php.c>
+    php_value upload_max_filesize 20M
+    php_value post_max_size 20M
+    php_value max_execution_time 60
+</IfModule>

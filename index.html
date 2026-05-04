@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DocGen</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="logo">Doc<span>Gen</span></div>
+      <div class="logo-sub">Template Processor</div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">Model</div>
+      <select class="model-select" id="model-select">
+        <option value="">— select model —</option>
+      </select>
+      <button class="btn-new-model" onclick="showNewModelModal()" title="Create a new model">＋ New Model</button>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">Project</div>
+      <div class="project-pill" onclick="showModal()">
+        <span class="dot"></span>
+        <span class="name" id="sidebar-project">— none —</span>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">Navigate</div>
+      <button class="nav-item active" onclick="switchTab('form',this)"><span class="icon">📝</span> Fill Form</button>
+      <button class="nav-item" onclick="switchTab('templates',this)"><span class="icon">📁</span> Templates</button>
+      <button class="nav-item" onclick="switchTab('outputs',this)"><span class="icon">📦</span> Outputs</button>
+      <button class="nav-item" onclick="switchTab('keywords',this)"><span class="icon">🔑</span> Keywords</button>
+    </div>
+
+    <div class="sidebar-spacer"></div>
+    <div class="sidebar-footer">v2.0 · PhpWord Engine<br>php -S localhost:8000 router.php</div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+    <div class="topbar">
+      <div class="topbar-title" id="topbar-title">Fill Form</div>
+      <div class="tab-group">
+        <button class="tab-btn active" id="tab-form" onclick="switchTab('form')">Form</button>
+        <button class="tab-btn" id="tab-templates" onclick="switchTab('templates')">Templates</button>
+        <button class="tab-btn" id="tab-outputs" onclick="switchTab('outputs')">Outputs</button>
+        <button class="tab-btn" id="tab-keywords" onclick="switchTab('keywords')">Keywords</button>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- FORM PANEL -->
+      <div class="panel active" id="panel-form">
+        <div class="section-title">Document Data</div>
+        <div class="section-sub">Select a model to load its fields. Data auto-saves to localStorage.</div>
+
+        <!-- Project strip -->
+        <div class="project-strip">
+          <div style="font-size:1.4rem">🗂️</div>
+          <div style="flex:1">
+            <label>Project Name</label>
+            <input type="text" id="project-name" placeholder="e.g. kontrak-2024" oninput="onProjectInput(this.value)" />
+            <div class="path-preview">output/<span id="path-preview">...</span>/<span id="path-model-preview">...</span>/</div>
+          </div>
+          <div>
+            <label>Templates <span id="tpl-count-badge" class="func-badge" style="display:none"></span></label>
+            <div id="template-checklist" class="template-checklist">
+              <div style="color:rgba(255,255,255,0.3);font-size:12px;font-family:'DM Mono',monospace">— select model first —</div>
+            </div>
+          </div>
+          <div style="align-self:flex-end">
+            <button class="btn btn-primary btn-generate" onclick="generateDoc()" style="white-space:nowrap">⚡ Generate</button>
+          </div>
+        </div>
+
+        <!-- Restore banner (shown when values.json found for project+model) -->
+        <div id="restore-banner" style="display:none" class="restore-banner">
+          <span>🔄</span>
+          <span id="restore-banner-text">Previous session data found.</span>
+          <span class="spacer"></span>
+          <button class="btn btn-ghost" style="padding:4px 10px;font-size:12px" onclick="dismissRestore()">Dismiss</button>
+          <button class="btn btn-primary" style="padding:4px 10px;font-size:12px" onclick="restoreFromSnapshot()">Restore</button>
+        </div>
+
+        <!-- Hidden select kept for template key storage compat -->
+        <select id="template-select" style="display:none"></select>
+
+        <!-- Dynamic form fields rendered here -->
+        <div id="form-fields">
+          <div class="empty"><div class="empty-icon">📋</div><div class="empty-text">Select a model from the sidebar to load its fields</div></div>
+        </div>
+
+        <div class="progress-bar" id="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+
+        <div class="btn-row">
+          <span id="gen-status"></span>
+          <span class="spacer"></span>
+          <button class="btn btn-ghost" onclick="clearForm()">🗑 Clear</button>
+          <button class="btn btn-ghost" onclick="showClearCacheModal()" title="Clear localStorage data">🧹 Cache</button>
+          <button class="btn btn-secondary" onclick="saveDraft()">💾 Save Draft</button>
+          <button class="btn btn-primary btn-generate" onclick="generateDoc()">⚡ Generate .docx</button>
+        </div>
+      </div>
+
+      <!-- TEMPLATES PANEL -->
+      <div class="panel" id="panel-templates">
+        <div class="section-title">Templates</div>
+        <div class="section-sub">Upload <code>.docx</code> files for the selected model. Use <code>${keyword}</code> in Word as placeholders.</div>
+
+        <div class="card">
+          <div class="card-title">📤 Upload to model: <span id="upload-model-name" style="color:var(--accent)">—</span></div>
+          <div class="upload-zone" id="upload-zone" onclick="document.getElementById('file-input').click()"
+            ondragover="dragOver(event)" ondragleave="dragLeave(event)" ondrop="dropFile(event)">
+            <input type="file" id="file-input" accept=".docx" multiple onchange="handleUpload(this.files)" />
+            <div class="upload-icon">📂</div>
+            <div class="upload-text"><strong>Click to upload</strong> or drag & drop</div>
+            <div class="upload-hint">.docx only · models/<span id="upload-model-path">—</span>/</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">📄 Uploaded Templates</div>
+          <div id="template-list"><div class="empty"><div class="empty-icon">📭</div><div class="empty-text">No templates yet</div></div></div>
+        </div>
+
+        <div class="card" style="background:var(--paper);border-style:dashed">
+          <div class="card-title">💡 Available keywords for this model</div>
+          <div id="keyword-list" style="font-family:'DM Mono',monospace;font-size:12px;line-height:2;color:var(--ink2)">
+            Select a model to see keywords.
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">🔍 Template Keyword Scanner</div>
+          <div style="font-size:12px;color:var(--ink2);margin-bottom:0.75rem">Select a template above to check for mismatched <code>${keyword}</code> placeholders.</div>
+          <div id="keyword-scan-result"></div>
+        </div>
+      </div>
+
+      <!-- OUTPUTS PANEL -->
+      <div class="panel" id="panel-outputs">
+        <div class="section-title">Output Files</div>
+        <div class="section-sub">Generated documents organized by project and model.</div>
+        <div class="card">
+          <div class="card-title">📦 Recent Outputs</div>
+          <div id="output-list"><div class="empty"><div class="empty-icon">📭</div><div class="empty-text">No files generated yet</div></div></div>
+        </div>
+      </div>
+
+      <!-- KEYWORDS PANEL -->
+      <div class="panel" id="panel-keywords">
+        <div class="section-title">Keywords</div>
+        <div class="section-sub">All <code>${keyword}</code> placeholders for the current model. Click any to copy.</div>
+        <div id="keywords-content">
+          <div class="empty"><div class="empty-icon">🔑</div><div class="empty-text">Select a model to see its keywords</div></div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<!-- Project modal -->
+<div class="modal-bg" id="modal-bg">
+  <div class="modal">
+    <div class="modal-title">Set Project Name</div>
+    <div class="modal-sub">Determines the output folder: <code>output/{project}/{model}/</code></div>
+    <div class="field" id="existing-projects-field" style="display:none;margin-bottom:0.75rem">
+      <label>Existing Projects <span class="field-hint">click to select</span></label>
+      <select id="existing-project-select" onchange="onExistingProjectSelect(this.value)">
+        <option value="">— pick an existing project —</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Project Name <span class="field-hint">or type a new one</span></label>
+      <input type="text" id="modal-project-input" placeholder="e.g. kontrak-jalan-2024" />
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="applyProject()">Apply</button>
+    </div>
+  </div>
+</div>
+
+<!-- New Model modal -->
+<div class="modal-bg" id="new-model-modal-bg">
+  <div class="modal">
+    <div class="modal-title">Create New Model</div>
+    <div class="modal-sub">A new folder will be created at <code>models/{name}/</code> with a <code>fields.json</code>.</div>
+    <div class="field" style="margin-bottom:0.75rem">
+      <label>Model Name</label>
+      <input type="text" id="new-model-name" placeholder="e.g. mou, surat-perintah" />
+    </div>
+    <div class="field">
+      <label>Copy fields.json from <span class="field-hint">optional</span></label>
+      <select id="new-model-copy-from">
+        <option value="">— start blank —</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeNewModelModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="createModel()">Create</button>
+    </div>
+  </div>
+</div>
+
+
+
+<!-- Clear Cache modal -->
+<div class="modal-bg" id="clear-cache-modal-bg">
+  <div class="modal">
+    <div class="modal-title">🧹 Clear Cache</div>
+    <div class="modal-sub">Choose what to clear from localStorage.</div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:1rem">
+      <label class="cache-option">
+        <input type="checkbox" id="cc-draft" checked />
+        <div>
+          <div class="cache-option-title">Form draft <span id="cc-draft-model" class="func-badge"></span></div>
+          <div class="cache-option-sub">Current field values saved for this model</div>
+        </div>
+      </label>
+      <label class="cache-option">
+        <input type="checkbox" id="cc-templates" checked />
+        <div>
+          <div class="cache-option-title">Template selection <span id="cc-tpl-model" class="func-badge"></span></div>
+          <div class="cache-option-sub">Remembered checked templates for this model</div>
+        </div>
+      </label>
+      <label class="cache-option">
+        <input type="checkbox" id="cc-project" />
+        <div>
+          <div class="cache-option-title">Project &amp; model</div>
+          <div class="cache-option-sub">Last used project name and model selection</div>
+        </div>
+      </label>
+      <label class="cache-option">
+        <input type="checkbox" id="cc-outputs" />
+        <div>
+          <div class="cache-option-title">Output history</div>
+          <div class="cache-option-sub">Cached list of generated files (files on disk are kept)</div>
+        </div>
+      </label>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeClearCacheModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="executeClearCache()">Clear Selected</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<script src="script.js"></script>
+</body>
+</html>

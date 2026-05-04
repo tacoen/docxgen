@@ -1,0 +1,21 @@
+# Composer
+vendor/
+
+# Models — each install defines its own
+models/
+
+# Generated outputs
+output/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# PHP dev server log
+*.log
+
